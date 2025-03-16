@@ -29,6 +29,7 @@ let showAutoFocusIndicators = true; // Whether to show the path and focus point
 
 // UI Controls
 let showControls = true;
+let showLines = true; // Add variable to control line visibility
 let sliderParticles, sliderRadius, sliderWaveAmp, sliderWaveSpeed;
 let sliderRotation, sliderMouseForce, sliderSpring, sliderMouseSize;
 let sliderAutoSpeed, sliderAutoScale, toggleAutoFocus;
@@ -152,6 +153,21 @@ function createControlPanel() {
     showAutoFocusIndicators = toggleIndicators.checked();
   });
   
+  // Show/Hide Lines Toggle
+  let linesContainer = createElement('div');
+  linesContainer.parent(controlPanel);
+  linesContainer.style('margin-bottom: 12px; display: flex; align-items: center;');
+  
+  let linesLabel = createElement('span', 'Show Lines:');
+  linesLabel.parent(linesContainer);
+  
+  let toggleLines = createCheckbox('', showLines);
+  toggleLines.parent(linesContainer);
+  toggleLines.style('margin-left: auto;');
+  toggleLines.changed(() => {
+    showLines = toggleLines.checked();
+  });
+  
   // Auto Focus Speed
   createSliderGroup('Auto Speed', 0, 0.05, autoFocusSpeed, 0.001, (val) => {
     autoFocusSpeed = val;
@@ -256,13 +272,15 @@ function draw() {
     particle.display();
   }
   
-  // Draw lines between adjacent particles
-  stroke(0, 0, 50, 0.3);
-  strokeWeight(1);
-  for (let i = 0; i < particles.length; i++) {
-    let p1 = particles[i];
-    let p2 = particles[(i + 1) % particles.length];
-    line(p1.pos.x, p1.pos.y, p2.pos.x, p2.pos.y);
+  // Draw lines between adjacent particles if showLines is true
+  if (showLines) {
+    stroke(0, 0, 50, 0.3);
+    strokeWeight(1);
+    for (let i = 0; i < particles.length; i++) {
+      let p1 = particles[i];
+      let p2 = particles[(i + 1) % particles.length];
+      line(p1.pos.x, p1.pos.y, p2.pos.x, p2.pos.y);
+    }
   }
 }
 
