@@ -1,35 +1,35 @@
 // Reactive Circle Particles
 let particles = [];
-let numParticles = 50;
-let radius = 200;
+let numParticles = 100;
+let radius = 240;
 let centerX, centerY;
 
 // Spring physics
 let springStrength = 0.05;
-let mouseRepelForce = 0.2;
+let mouseRepelForce = 0.45;
 let mouseRepelRadius = 150;
 let damping = 0.8;
 
 // Autonomous movement
-let rotationSpeed = 0.0005; // Very slow rotation
-let oscillationAmount = 15; // How much particles oscillate
-let oscillationSpeed = 0.02; // Speed of oscillation
+let rotationSpeed = -0.002; // Very slow rotation
+let oscillationAmount = 6; // How much particles oscillate
+let oscillationSpeed = 0.042; // Speed of oscillation
 
 // Mouse proximity effects
-let mouseProximityScale = 4.0; // How much particles grow when mouse is close
+let mouseProximityScale = 8.7; // How much particles grow when mouse is close
 
 // Automatic focus point (simulates mouse movement in a circle)
 let autoFocus = true;
-let autoFocusRadius = 250;
-let autoFocusSpeed = 0.01;
+let autoFocusRadius = 240;
+let autoFocusSpeed = 0.047;
 let autoFocusAngle = 0;
 let autoFocusPoint = { x: 0, y: 0 };
-let autoFocusScale = 3.0; // How much particles grow with auto focus
-let showAutoFocusIndicators = true; // Whether to show the path and focus point
+let autoFocusScale = 10.0; // How much particles grow with auto focus
+let showAutoFocusIndicators = false; // Whether to show the path and focus point
 
 // UI Controls
 let showControls = true;
-let showLines = true; // Add variable to control line visibility
+let showLines = false; // Add variable to control line visibility
 let sliderParticles, sliderRadius, sliderWaveAmp, sliderWaveSpeed;
 let sliderRotation, sliderMouseForce, sliderSpring, sliderMouseSize;
 let sliderAutoSpeed, sliderAutoScale, toggleAutoFocus;
@@ -75,6 +75,9 @@ function createControlPanel() {
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
     width: 250px;
     font-family: Arial, sans-serif;
+    max-height: 80vh;
+    overflow-y: auto;
+    overflow-x: hidden;
   `;
   controlPanel.style(panelStyle);
   
@@ -83,49 +86,73 @@ function createControlPanel() {
   title.parent(controlPanel);
   title.style('margin-top: 0; margin-bottom: 15px;');
   
-  // Create all sliders
+  // Create collapsible sections
+  
+  // SECTION 1: Basic Settings
+  let basicSection = createCollapsibleSection('Basic Settings', true);
+  
+  // Create basic sliders in this section
   createSliderGroup('Particles', 10, 100, numParticles, 1, (val) => {
     numParticles = val;
     createParticles();
-  });
+  }, basicSection);
   
   createSliderGroup('Radius', 50, 400, radius, 10, (val) => {
     radius = val;
     updateParticlePositions();
+  }, basicSection);
+  
+  // Show/Hide Lines Toggle
+  let linesContainer = createElement('div');
+  linesContainer.parent(basicSection);
+  linesContainer.style('margin-bottom: 12px; display: flex; align-items: center;');
+  
+  let linesLabel = createElement('span', 'Show Lines:');
+  linesLabel.parent(linesContainer);
+  
+  let toggleLines = createCheckbox('', showLines);
+  toggleLines.parent(linesContainer);
+  toggleLines.style('margin-left: auto;');
+  toggleLines.changed(() => {
+    showLines = toggleLines.checked();
   });
+  
+  // SECTION 2: Motion Settings
+  let motionSection = createCollapsibleSection('Motion Settings', false);
   
   createSliderGroup('Wave Amplitude', 0, 50, oscillationAmount, 1, (val) => {
     oscillationAmount = val;
-  });
+  }, motionSection);
   
   createSliderGroup('Wave Speed', 0, 0.1, oscillationSpeed, 0.001, (val) => {
     oscillationSpeed = val;
-  });
+  }, motionSection);
   
   createSliderGroup('Rotation', -0.002, 0.002, rotationSpeed, 0.0001, (val) => {
     rotationSpeed = val;
-  });
+  }, motionSection);
+  
+  // SECTION 3: Interaction Settings
+  let interactionSection = createCollapsibleSection('Interaction Settings', false);
   
   createSliderGroup('Mouse Force', 0, 0.5, mouseRepelForce, 0.01, (val) => {
     mouseRepelForce = val;
-  });
+  }, interactionSection);
   
   createSliderGroup('Spring', 0.01, 0.2, springStrength, 0.01, (val) => {
     springStrength = val;
-  });
+  }, interactionSection);
   
   createSliderGroup('Mouse Size Effect', 0, 10, mouseProximityScale, 0.1, (val) => {
     mouseProximityScale = val;
-  });
+  }, interactionSection);
   
-  // Auto Focus Controls
-  let autoTitle = createElement('h4', 'Automatic Focus');
-  autoTitle.parent(controlPanel);
-  autoTitle.style('margin-top: 20px; margin-bottom: 10px;');
+  // SECTION 4: Auto Focus Controls
+  let autoFocusSection = createCollapsibleSection('Auto Focus Settings', false);
   
   // Auto Focus Toggles
   let toggleContainer = createElement('div');
-  toggleContainer.parent(controlPanel);
+  toggleContainer.parent(autoFocusSection);
   toggleContainer.style('margin-bottom: 12px; display: flex; align-items: center;');
   
   let toggleLabel = createElement('span', 'Enable Auto Focus:');
@@ -140,7 +167,7 @@ function createControlPanel() {
   
   // Show Indicators Toggle
   let indicatorContainer = createElement('div');
-  indicatorContainer.parent(controlPanel);
+  indicatorContainer.parent(autoFocusSection);
   indicatorContainer.style('margin-bottom: 12px; display: flex; align-items: center;');
   
   let indicatorLabel = createElement('span', 'Show Indicators:');
@@ -153,35 +180,20 @@ function createControlPanel() {
     showAutoFocusIndicators = toggleIndicators.checked();
   });
   
-  // Show/Hide Lines Toggle
-  let linesContainer = createElement('div');
-  linesContainer.parent(controlPanel);
-  linesContainer.style('margin-bottom: 12px; display: flex; align-items: center;');
-  
-  let linesLabel = createElement('span', 'Show Lines:');
-  linesLabel.parent(linesContainer);
-  
-  let toggleLines = createCheckbox('', showLines);
-  toggleLines.parent(linesContainer);
-  toggleLines.style('margin-left: auto;');
-  toggleLines.changed(() => {
-    showLines = toggleLines.checked();
-  });
-  
   // Auto Focus Speed
   createSliderGroup('Auto Speed', 0, 0.05, autoFocusSpeed, 0.001, (val) => {
     autoFocusSpeed = val;
-  });
+  }, autoFocusSection);
   
   // Auto Focus Size Effect
   createSliderGroup('Auto Size Effect', 0, 10, autoFocusScale, 0.1, (val) => {
     autoFocusScale = val;
-  });
+  }, autoFocusSection);
   
   // Auto Focus Radius
   createSliderGroup('Auto Radius', 50, 400, autoFocusRadius, 10, (val) => {
     autoFocusRadius = val;
-  });
+  }, autoFocusSection);
   
   // Toggle controls button
   hideButton = createButton('Hide Controls');
@@ -190,10 +202,53 @@ function createControlPanel() {
   hideButton.mousePressed(toggleControls);
 }
 
-function createSliderGroup(labelText, min, max, defaultValue, step, callback) {
+// Function to create a collapsible section
+function createCollapsibleSection(title, startOpen = true) {
+  // Create a section container
+  let section = createElement('div');
+  section.parent(controlPanel);
+  section.addClass('collapsible-section');
+  section.style('margin-bottom: 15px; border: 1px solid rgba(0,0,0,0.1); border-radius: 5px; overflow: hidden;');
+  
+  // Create the header/toggle
+  let header = createElement('div', title);
+  header.parent(section);
+  header.style(`
+    background-color: rgba(0,0,0,0.05);
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+  `);
+  
+  // Add arrow indicator
+  let arrow = createElement('span', startOpen ? '▼' : '►');
+  arrow.parent(header);
+  
+  // Create the content container
+  let content = createElement('div');
+  content.parent(section);
+  content.style(`
+    padding: 10px;
+    display: ${startOpen ? 'block' : 'none'};
+  `);
+  
+  // Toggle functionality
+  header.mousePressed(() => {
+    let isVisible = content.style('display') !== 'none';
+    content.style('display', isVisible ? 'none' : 'block');
+    arrow.html(isVisible ? '►' : '▼');
+  });
+  
+  return content;
+}
+
+function createSliderGroup(labelText, min, max, defaultValue, step, callback, parent = null) {
   // Create container for this slider group
   let container = createElement('div');
-  container.parent(controlPanel);
+  container.parent(parent || controlPanel);
   container.style('margin-bottom: 12px;');
   
   // Create the label row with value display
