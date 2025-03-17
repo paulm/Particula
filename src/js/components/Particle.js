@@ -101,13 +101,11 @@ class Particle {
     
     // Apply mouse interactions if mouse is within canvas
     if (mouseX > 0 && mouseX < width && mouseY > 0 && mouseY < height) {
-      let mouseScale = this.applyMouseInteraction();
-      proximityScale = max(proximityScale, mouseScale);
+      this.applyMouseInteraction(proximityScale);
     }
     
     // Apply auto focus interactions
-    let autoScale = this.applyAutoFocusInteractions();
-    proximityScale = max(proximityScale, autoScale);
+    this.applyAutoFocusInteractions(proximityScale);
     
     // Smoothly transition proximity scale
     this.proximityScale = lerp(this.proximityScale, proximityScale, 0.2);
@@ -171,14 +169,12 @@ class Particle {
   
   /**
    * Apply mouse interaction forces and effects
-   * Returns the calculated proximity scale
-   * @returns {number} - Calculated proximity scale
+   * @param {number} proximityScale - Reference to the proximity scale value
    */
-  applyMouseInteraction() {
+  applyMouseInteraction(proximityScale) {
     let mousePos = createVector(mouseX, mouseY);
     let dir = p5.Vector.sub(this.pos, mousePos);
     let d = dir.mag();
-    let mouseScale = 0;
     
     // Mouse repel force
     if (d < Config.mouse.repelRadius) {
@@ -190,20 +186,16 @@ class Particle {
     
     // Mouse proximity scaling
     if (d < this.influenceRadius) {
-      mouseScale = map(d, 0, this.influenceRadius, Config.mouse.proximityScale, 0);
+      let mouseScale = map(d, 0, this.influenceRadius, Config.mouse.proximityScale, 0);
+      proximityScale = max(proximityScale, mouseScale);
     }
-    
-    return mouseScale;
   }
   
   /**
    * Apply auto focus interaction forces and effects
-   * Returns the calculated proximity scale
-   * @returns {number} - Calculated proximity scale
+   * @param {number} proximityScale - Reference to the proximity scale value
    */
-  applyAutoFocusInteractions() {
-    let maxAutoScale = 0;
-    
+  applyAutoFocusInteractions(proximityScale) {
     for (let point of AutoFocusManager.points) {
       if (point.enabled) {
         let focusPos = createVector(point.point.x, point.point.y);
@@ -222,12 +214,10 @@ class Particle {
         // Auto focus scaling
         if (d < this.influenceRadius) {
           let autoScale = map(d, 0, this.influenceRadius, point.scale, 0);
-          maxAutoScale = max(maxAutoScale, autoScale);
+          proximityScale = max(proximityScale, autoScale);
         }
       }
     }
-    
-    return maxAutoScale;
   }
   
   /**

@@ -12,10 +12,6 @@ class UIManager {
     this.hideButton = null;
     this.autoFocusSections = [];
     
-    // Store references to key UI elements for updating
-    this.particlesSlider = null;
-    this.particlesValueDisplay = null;
-    
     this.createControlPanel();
   }
   
@@ -68,7 +64,7 @@ class UIManager {
     const basicSection = this.createCollapsibleSection('Basic Settings', true);
     
     // Particles count slider
-    const particlesSliderGroup = this.createSliderGroup(
+    this.createSliderGroup(
       'Particles', 
       10, 300, 
       ParticleSystem.count, 
@@ -84,10 +80,6 @@ class UIManager {
       },
       basicSection
     );
-    
-    // Store references for updating from outside
-    this.particlesSlider = particlesSliderGroup.slider;
-    this.particlesValueDisplay = particlesSliderGroup.valueDisplay;
     
     // Radius slider
     this.createSliderGroup(
@@ -237,7 +229,7 @@ class UIManager {
     );
     
     // Particle Count controls
-    const countGroup = this.createGroupContainer(intervalSection, true);
+    const countGroup = this.createGroupContainer(intervalSection, false);
     
     // Particle Count toggle
     this.createToggle(
@@ -265,27 +257,6 @@ class UIManager {
       1,
       (val) => { IntervalManager.setParticleCountStep(val); },
       countGroup
-    );
-    
-    // Wave Amplitude controls
-    const waveGroup = this.createGroupContainer(intervalSection, false);
-    
-    // Wave Amplitude toggle
-    this.createToggle(
-      'Wave Amplitude Pop', 
-      IntervalManager.waveAmplitudeEnabled,
-      (checked) => { IntervalManager.setWaveAmplitudeEnabled(checked); },
-      waveGroup
-    );
-    
-    // Wave Amplitude Interval Time slider
-    this.createSliderGroup(
-      'Wave Interval (sec)', 
-      0, 5, 
-      IntervalManager.waveAmplitudeIntervalTime / 1000, 
-      0.1,
-      (val) => { IntervalManager.setWaveAmplitudeIntervalTime(val); },
-      waveGroup
     );
   }
   
@@ -626,20 +597,6 @@ class UIManager {
     });
     
     return { container, checkbox };
-  }
-  
-  /**
-   * Update the particles count slider to match the actual count
-   * @param {number} count - The current particle count
-   */
-  static updateParticlesSlider(count) {
-    if (this.particlesSlider && this.particlesValueDisplay) {
-      // Update slider value without triggering the input event
-      this.particlesSlider.value(count);
-      
-      // Update the value display
-      this.particlesValueDisplay.html(count);
-    }
   }
   
   /**

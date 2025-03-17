@@ -27,12 +27,6 @@ class IntervalManager {
     this.lastParticleCountTime = 0;
     this.particleCountIncreasing = true;
     this.particleCountStep = Config.intervals.particleCount.step;
-    
-    // Wave amplitude interval
-    this.waveAmplitudeEnabled = Config.intervals.waveAmplitude.enabled;
-    this.waveAmplitudeIntervalTime = Config.intervals.waveAmplitude.time;
-    this.lastWaveAmplitudeTime = 0;
-    this.useZeroWaveAmplitude = true;
   }
   
   /**
@@ -49,9 +43,6 @@ class IntervalManager {
     
     // Process particle count interval
     this.processParticleCountInterval(currentTime);
-    
-    // Process wave amplitude interval
-    this.processWaveAmplitudeInterval(currentTime);
     
     // Process particle queue (gradual additions/removals)
     ParticleSystem.processParticleQueue();
@@ -234,55 +225,5 @@ class IntervalManager {
    */
   static setParticleCountStep(step) {
     this.particleCountStep = step;
-  }
-  
-  /**
-   * Process wave amplitude interval effect
-   * @param {number} currentTime - Current time in milliseconds
-   */
-  static processWaveAmplitudeInterval(currentTime) {
-    if (!this.waveAmplitudeEnabled) return;
-    
-    if (currentTime - this.lastWaveAmplitudeTime >= this.waveAmplitudeIntervalTime) {
-      // Toggle between zero and random amplitude
-      this.useZeroWaveAmplitude = !this.useZeroWaveAmplitude;
-      
-      // Choose amplitude value based on toggle state
-      let newAmplitude;
-      if (this.useZeroWaveAmplitude) {
-        newAmplitude = Config.intervals.waveAmplitude.minValue; // 0
-      } else {
-        // Random value between min and max
-        newAmplitude = random(
-          Config.intervals.waveAmplitude.maxValue.min,
-          Config.intervals.waveAmplitude.maxValue.max
-        );
-      }
-      
-      // Update configuration
-      Config.particles.motion.oscillationAmount = newAmplitude;
-      
-      // Update timing
-      this.lastWaveAmplitudeTime = currentTime;
-    }
-  }
-  
-  /**
-   * Set wave amplitude interval enabled state
-   * @param {boolean} enabled - Whether wave amplitude interval is enabled
-   */
-  static setWaveAmplitudeEnabled(enabled) {
-    this.waveAmplitudeEnabled = enabled;
-    if (enabled) {
-      this.lastWaveAmplitudeTime = millis();
-    }
-  }
-  
-  /**
-   * Update wave amplitude interval time
-   * @param {number} seconds - Interval time in seconds
-   */
-  static setWaveAmplitudeIntervalTime(seconds) {
-    this.waveAmplitudeIntervalTime = seconds * 1000;
   }
 }
