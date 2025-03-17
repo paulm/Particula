@@ -48,12 +48,12 @@ let currentColorScheme = 0;
 
 // Interval effects - each effect has its own timing
 let radiusIntervalEnabled = true;
-let radiusIntervalTime = 500; // 0.5 seconds interval in milliseconds
+let radiusIntervalTime = 3000; // 3 seconds interval in milliseconds
 let lastRadiusIntervalTime = 0;
 let radiusIncreasing = true;
-let radiusMin = 100;
-let radiusMax = 300;
-let radiusStep = 20;
+let radiusMinRange = { min: 50, max: 120 };  // Small radius range
+let radiusMaxRange = { min: 240, max: 300 }; // Large radius range
+let radiusInSmallRange = false; // Start with large radius
 
 // Particle highlight effect
 let particleHighlightEnabled = false;
@@ -66,13 +66,20 @@ let highlightScale = 5; // Expand to 5x size
 
 // Particle count interval effect
 let particleCountIntervalEnabled = true;
-let particleCountIntervalTime = 100; // 0.1 seconds interval in milliseconds
+let particleCountIntervalTime = 1000; // 1 second interval in milliseconds
 let lastParticleCountTime = 0;
 let particleCountIncreasing = true;
 let particleCountMin = 10;
 let particleCountMax = 300;
-let particleCountMinStep = 1;
-let particleCountMaxStep = 4;
+let particleCountStep = 10; // Fixed step size instead of random
+let particleCountMinStep = 1; // Kept for backward compatibility
+let particleCountMaxStep = 4; // Kept for backward compatibility
+
+// Particle gradual insertion/removal
+let particlesQueuedForAction = 0;  // Number of particles queued to add/remove
+let particleActionIsAddition = true; // Whether we're adding (true) or removing (false)
+let lastParticleActionTime = 0;     // Time of last individual particle action
+let particleActionInterval = 0;     // Interval between individual particle actions
 
 // Auto focus section containers
 let autoFocusSections = [];
@@ -393,7 +400,7 @@ function createControlPanel() {
   });
   
   // Radius Interval Time slider
-  createSliderGroup('Radius Interval (sec)', 0, 3, radiusIntervalTime/1000, 0.1, (val) => {
+  createSliderGroup('Radius Interval (sec)', 0, 10, radiusIntervalTime/1000, 0.1, (val) => {
     radiusIntervalTime = val * 1000; // Convert to milliseconds
   }, radiusIntervalGroup);
   
@@ -455,6 +462,11 @@ function createControlPanel() {
   // Particle Count Interval Time slider
   createSliderGroup('Count Interval (sec)', 0, 3, particleCountIntervalTime/1000, 0.1, (val) => {
     particleCountIntervalTime = val * 1000; // Convert to milliseconds
+  }, countGroup);
+  
+  // Particle Count Step Size slider
+  createSliderGroup('Number of Particles', 1, 20, particleCountStep, 1, (val) => {
+    particleCountStep = val;
   }, countGroup);
   
   // SECTION 4: Auto Focus Controls
@@ -782,19 +794,16 @@ function processIntervalEffects() {
   
   // Radius pulsing effect
   if (radiusIntervalEnabled && currentTime - lastRadiusIntervalTime >= radiusIntervalTime) {
-    // Adjust radius based on current direction
-    if (radiusIncreasing) {
-      radius += radiusStep;
-      if (radius >= radiusMax) {
-        radius = radiusMax;
-        radiusIncreasing = false;
-      }
+    // Toggle between small and large radius ranges
+    radiusInSmallRange = !radiusInSmallRange;
+    
+    // Generate a random radius within the selected range
+    if (radiusInSmallRange) {
+      // Choose a random value in the small radius range
+      radius = random(radiusMinRange.min, radiusMinRange.max);
     } else {
-      radius -= radiusStep;
-      if (radius <= radiusMin) {
-        radius = radiusMin;
-        radiusIncreasing = true;
-      }
+      // Choose a random value in the large radius range
+      radius = random(radiusMaxRange.min, radiusMaxRange.max);
     }
     
     // Update particle positions based on new radius
@@ -816,42 +825,68 @@ function processIntervalEffects() {
   
   // Particle count variation effect
   if (particleCountIntervalEnabled && currentTime - lastParticleCountTime >= particleCountIntervalTime) {
-    // Generate a random step between min and max
-    let step = floor(random(particleCountMinStep, particleCountMaxStep + 1));
+    // Use fixed step size from slider instead of random
+    let step = particleCountStep;
     
-    // Adjust particle count based on current direction
-    if (particleCountIncreasing) {
-      // Add new particles
-      let newCount = min(numParticles + step, particleCountMax);
-      
-      // Add particles incrementally
-      if (newCount > numParticles) {
-        addParticles(newCount - numParticles);
-        numParticles = newCount;
-      }
-      
-      // Check if we've reached the maximum
-      if (numParticles >= particleCountMax) {
-        particleCountIncreasing = false;
-      }
-    } else {
-      // Remove particles
-      let newCount = max(numParticles - step, particleCountMin);
-      
-      // Remove particles incrementally
-      if (newCount < numParticles) {
-        removeParticles(numParticles - newCount);
-        numParticles = newCount;
-      }
-      
-      // Check if we've reached the minimum
-      if (numParticles <= particleCountMin) {
-        particleCountIncreasing = true;
+    // Queue particles for gradual addition/removal
+    if (particlesQueuedForAction <= 0) { // Only queue new particles when current queue is processed
+      // Adjust particle count based on current direction
+      if (particleCountIncreasing) {
+        // Calculate how many particles to add
+        let newCount = min(numParticles + step, particleCountMax);
+        let particlesToAdd = newCount - numParticles;
+        
+        if (particlesToAdd > 0) {
+          // Set up the gradual addition queue
+          particlesQueuedForAction = particlesToAdd;
+          particleActionIsAddition = true;
+          particleActionInterval = particleCountIntervalTime / particlesToAdd;
+          lastParticleActionTime = currentTime;
+        }
+        
+        // Check if we've reached the maximum
+        if (newCount >= particleCountMax) {
+          particleCountIncreasing = false;
+        }
+      } else {
+        // Calculate how many particles to remove
+        let newCount = max(numParticles - step, particleCountMin);
+        let particlesToRemove = numParticles - newCount;
+        
+        if (particlesToRemove > 0) {
+          // Set up the gradual removal queue
+          particlesQueuedForAction = particlesToRemove;
+          particleActionIsAddition = false;
+          particleActionInterval = particleCountIntervalTime / particlesToRemove;
+          lastParticleActionTime = currentTime;
+        }
+        
+        // Check if we've reached the minimum
+        if (newCount <= particleCountMin) {
+          particleCountIncreasing = true;
+        }
       }
     }
     
     // Update the last particle count interval time
     lastParticleCountTime = currentTime;
+  }
+  
+  // Process gradual particle additions/removals
+  if (particlesQueuedForAction > 0 && currentTime - lastParticleActionTime >= particleActionInterval) {
+    if (particleActionIsAddition) {
+      // Add one particle at a time
+      addParticles(1);
+      numParticles++;
+    } else {
+      // Remove one particle at a time
+      removeParticles(1);
+      numParticles--;
+    }
+    
+    // Decrement the queue and update the last action time
+    particlesQueuedForAction--;
+    lastParticleActionTime = currentTime;
   }
   
   // Process particle highlight animation (happens continuously during highlight duration)
