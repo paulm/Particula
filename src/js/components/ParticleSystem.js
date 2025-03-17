@@ -257,6 +257,9 @@ class ParticleSystem {
         this.count--;
       }
       
+      // Update the UI slider to match the new count
+      UIManager.updateParticlesSlider(this.count);
+      
       // Update queue and timing
       this.particlesQueuedForAction--;
       this.lastParticleActionTime = currentTime;

@@ -53,6 +53,12 @@ const Config = {
       step: 10,
       min: 10,
       max: 300
+    },
+    waveAmplitude: {
+      enabled: false,
+      time: 2000, // 2 seconds
+      minValue: 0,
+      maxValue: { min: 5, max: 20 }
     }
   },
   
