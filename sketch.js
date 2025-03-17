@@ -18,23 +18,26 @@ let oscillationSpeed = 0.042; // Speed of oscillation
 // Mouse proximity effects
 let mouseProximityScale = 8.7; // How much particles grow when mouse is close
 
-// Automatic focus point (simulates mouse movement in a circle)
-let autoFocus = true;
-let autoFocusRadius = 300;
-let autoFocusSpeed = -0.048; // Negative for counter-clockwise
-let autoFocusAngle = 0;
-let autoFocusPoint = { x: 0, y: 0 };
-let autoFocusScale = 7.7; // How much particles grow with auto focus
-let showAutoFocusIndicators = false; // Whether to show the path and focus point
-let clockwiseAutoFocus = false; // Whether the auto focus moves clockwise (true) or counter-clockwise (false)
+// Auto Focus Points Collection (multiple instances)
+let autoFocusPoints = [];
+let autoFocusColors = [
+  { h: 0, s: 100, b: 100 },    // Red
+  { h: 200, s: 100, b: 100 },  // Cyan
+  { h: 280, s: 100, b: 100 },  // Purple
+  { h: 50, s: 100, b: 100 },   // Yellow
+  { h: 130, s: 100, b: 100 },  // Green
+  { h: 330, s: 100, b: 100 }   // Pink
+];
 
 // UI Controls
 let showControls = true;
 let showLines = false; // Add variable to control line visibility
 let sliderParticles, sliderRadius, sliderWaveAmp, sliderWaveSpeed;
 let sliderRotation, sliderMouseForce, sliderSpring, sliderMouseSize;
-let sliderAutoSpeed, sliderAutoScale, toggleAutoFocus;
 let controlPanel, hideButton;
+
+// Auto focus section containers
+let autoFocusSections = [];
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
@@ -43,11 +46,30 @@ function setup() {
   centerX = width / 2;
   centerY = height / 2;
   
+  // Create first auto focus point
+  createAutoFocusPoint({
+    enabled: true,
+    radius: 300,
+    speed: -0.048, // Negative for counter-clockwise
+    angle: 0,
+    point: { x: 0, y: 0 },
+    scale: 7.7,
+    spring: 0.5, // Spring strength for this auto focus
+    showIndicators: false,
+    clockwise: false,
+    color: autoFocusColors[0]
+  });
+  
   // Create particles arranged in a circle
   createParticles();
   
   // Setup control panel with HTML elements
   createControlPanel();
+}
+
+function createAutoFocusPoint(config) {
+  autoFocusPoints.push(config);
+  return autoFocusPoints.length - 1; // Return the index of the created point
 }
 
 function createParticles() {
@@ -149,21 +171,104 @@ function createControlPanel() {
   }, interactionSection);
   
   // SECTION 4: Auto Focus Controls
-  let autoFocusSection = createCollapsibleSection('Auto Focus Settings', false);
+  // First create a container for all auto focus sections
+  let autoFocusContainer = createElement('div');
+  autoFocusContainer.parent(controlPanel);
+  autoFocusContainer.id('auto-focus-container');
+  autoFocusContainer.style('margin-bottom: 15px;');
+  
+  // Add a button to add new auto focus instances
+  let addButton = createButton('+ Add Auto Focus');
+  addButton.parent(autoFocusContainer);
+  addButton.style('width: 100%; padding: 8px; margin-bottom: 15px; cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 4px;');
+  addButton.mousePressed(() => {
+    // Create a new auto focus point with default settings (opposite of first point)
+    let newIndex = createAutoFocusPoint({
+      enabled: true,
+      radius: 200,
+      speed: 0.025, // Positive for clockwise (opposite of first point)
+      angle: random(TWO_PI), // Random starting angle
+      point: { x: 0, y: 0 },
+      scale: 5.0,
+      spring: 0.3, // Default spring strength for new auto focus points
+      showIndicators: false,
+      clockwise: true, // Opposite of first point
+      color: autoFocusColors[autoFocusPoints.length % autoFocusColors.length]
+    });
+    
+    // Create UI controls for the new auto focus point
+    createAutoFocusControls(newIndex);
+  });
+  
+  // Create the first auto focus controls section
+  createAutoFocusControls(0);
+  
+  // Toggle controls button
+  hideButton = createButton('Hide Controls');
+  hideButton.parent(controlPanel);
+  hideButton.style('width: 100%; padding: 8px; margin-top: 15px; cursor: pointer;');
+  hideButton.mousePressed(toggleControls);
+}
+
+function createAutoFocusControls(index) {
+  const point = autoFocusPoints[index];
+  const colorLabel = `Auto Focus ${index + 1}`;
+  
+  // Create a collapsible section for this auto focus point
+  let autoFocusSection = createCollapsibleSection(colorLabel, index === 0);
+  autoFocusSections[index] = autoFocusSection;
+  
+  // Add color indicator to the section header
+  let sectionHeader = autoFocusSection.elt.parentElement.querySelector('div');
+  let colorIndicator = createElement('div');
+  colorIndicator.style(`
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: hsl(${point.color.h}, ${point.color.s}%, ${point.color.b / 2}%);
+    display: inline-block;
+    margin-right: 8px;
+  `);
+  
+  // Insert color indicator before the title text
+  sectionHeader.insertBefore(colorIndicator.elt, sectionHeader.firstChild);
+  
+  // Add remove button for all except the first auto focus point
+  if (index > 0) {
+    let removeButton = createButton('×');
+    removeButton.style(`
+      margin-left: 8px;
+      background: none;
+      border: none;
+      font-size: 16px;
+      cursor: pointer;
+      color: #999;
+      padding: 0 5px;
+    `);
+    removeButton.parent(sectionHeader);
+    removeButton.mousePressed(() => {
+      // Remove this auto focus point
+      autoFocusPoints.splice(index, 1);
+      // Remove the UI section
+      autoFocusSection.elt.parentElement.remove();
+      // Rebuild all auto focus controls (to update indices)
+      rebuildAutoFocusControls();
+    });
+  }
   
   // Auto Focus Toggles
   let toggleContainer = createElement('div');
   toggleContainer.parent(autoFocusSection);
   toggleContainer.style('margin-bottom: 12px; display: flex; align-items: center;');
   
-  let toggleLabel = createElement('span', 'Enable Auto Focus:');
+  let toggleLabel = createElement('span', 'Enable:');
   toggleLabel.parent(toggleContainer);
   
-  toggleAutoFocus = createCheckbox('', autoFocus);
+  let toggleAutoFocus = createCheckbox('', point.enabled);
   toggleAutoFocus.parent(toggleContainer);
   toggleAutoFocus.style('margin-left: auto;');
   toggleAutoFocus.changed(() => {
-    autoFocus = toggleAutoFocus.checked();
+    point.enabled = toggleAutoFocus.checked();
   });
   
   // Show Indicators Toggle
@@ -174,11 +279,11 @@ function createControlPanel() {
   let indicatorLabel = createElement('span', 'Show Indicators:');
   indicatorLabel.parent(indicatorContainer);
   
-  let toggleIndicators = createCheckbox('', showAutoFocusIndicators);
+  let toggleIndicators = createCheckbox('', point.showIndicators);
   toggleIndicators.parent(indicatorContainer);
   toggleIndicators.style('margin-left: auto;');
   toggleIndicators.changed(() => {
-    showAutoFocusIndicators = toggleIndicators.checked();
+    point.showIndicators = toggleIndicators.checked();
   });
   
   // Clockwise Toggle
@@ -189,36 +294,53 @@ function createControlPanel() {
   let clockwiseLabel = createElement('span', 'Clockwise:');
   clockwiseLabel.parent(clockwiseContainer);
   
-  let toggleClockwise = createCheckbox('', clockwiseAutoFocus);
+  let toggleClockwise = createCheckbox('', point.clockwise);
   toggleClockwise.parent(clockwiseContainer);
   toggleClockwise.style('margin-left: auto;');
   toggleClockwise.changed(() => {
-    clockwiseAutoFocus = toggleClockwise.checked();
-    // Adjust the sign of autoFocusSpeed based on direction
-    autoFocusSpeed = Math.abs(autoFocusSpeed) * (clockwiseAutoFocus ? 1 : -1);
+    point.clockwise = toggleClockwise.checked();
+    // Adjust the sign of speed based on direction
+    point.speed = Math.abs(point.speed) * (point.clockwise ? 1 : -1);
   });
   
   // Auto Focus Speed
-  createSliderGroup('Auto Speed', 0, 0.20, Math.abs(autoFocusSpeed), 0.001, (val) => {
+  createSliderGroup('Speed', 0, 0.20, Math.abs(point.speed), 0.001, (val) => {
     // Preserve direction while changing magnitude
-    autoFocusSpeed = val * (clockwiseAutoFocus ? 1 : -1);
+    point.speed = val * (point.clockwise ? 1 : -1);
   }, autoFocusSection);
   
   // Auto Focus Size Effect
-  createSliderGroup('Auto Size Effect', 0, 10, autoFocusScale, 0.1, (val) => {
-    autoFocusScale = val;
+  createSliderGroup('Size Effect', 0, 10, point.scale, 0.1, (val) => {
+    point.scale = val;
   }, autoFocusSection);
   
   // Auto Focus Radius
-  createSliderGroup('Auto Radius', 50, 400, autoFocusRadius, 10, (val) => {
-    autoFocusRadius = val;
+  createSliderGroup('Radius', 50, 400, point.radius, 10, (val) => {
+    point.radius = val;
   }, autoFocusSection);
   
-  // Toggle controls button
-  hideButton = createButton('Hide Controls');
-  hideButton.parent(controlPanel);
-  hideButton.style('width: 100%; padding: 8px; margin-top: 15px; cursor: pointer;');
-  hideButton.mousePressed(toggleControls);
+  // Auto Focus Spring Strength
+  createSliderGroup('Spring', 0, 1, point.spring, 0.05, (val) => {
+    point.spring = val;
+  }, autoFocusSection);
+}
+
+function rebuildAutoFocusControls() {
+  // Remove all existing auto focus sections
+  let container = select('#auto-focus-container');
+  for (let section of autoFocusSections) {
+    if (section && section.elt && section.elt.parentElement) {
+      section.elt.parentElement.remove();
+    }
+  }
+  
+  // Clear the sections array
+  autoFocusSections = [];
+  
+  // Rebuild the sections for all current auto focus points
+  for (let i = 0; i < autoFocusPoints.length; i++) {
+    createAutoFocusControls(i);
+  }
 }
 
 // Function to create a collapsible section
@@ -319,25 +441,29 @@ function updateParticlePositions() {
 function draw() {
   background(0, 0, 100, 0.2); // Semi-transparent white for slight trails
   
-  // Update automatic focus point (simulates mouse movement)
-  if (autoFocus) {
-    // Update angle (positive for clockwise, negative for counter-clockwise)
-    autoFocusAngle += autoFocusSpeed;
-    autoFocusPoint.x = centerX + cos(autoFocusAngle) * autoFocusRadius;
-    autoFocusPoint.y = centerY + sin(autoFocusAngle) * autoFocusRadius;
+  // Update all auto focus points
+  for (let i = 0; i < autoFocusPoints.length; i++) {
+    let point = autoFocusPoints[i];
     
-    // Visualize the auto focus point if indicators are enabled
-    if (showAutoFocusIndicators) {
-      push();
-      noFill();
-      stroke(0, 0, 70, 0.3);
-      strokeWeight(1);
-      ellipse(centerX, centerY, autoFocusRadius * 2);
+    if (point.enabled) {
+      // Update angle (positive for clockwise, negative for counter-clockwise)
+      point.angle += point.speed;
+      point.point.x = centerX + cos(point.angle) * point.radius;
+      point.point.y = centerY + sin(point.angle) * point.radius;
       
-      fill(0, 100, 100, 0.5);
-      noStroke();
-      ellipse(autoFocusPoint.x, autoFocusPoint.y, 10);
-      pop();
+      // Visualize the auto focus point if indicators are enabled
+      if (point.showIndicators) {
+        push();
+        noFill();
+        stroke(point.color.h, point.color.s, point.color.b / 2, 0.3);
+        strokeWeight(1);
+        ellipse(centerX, centerY, point.radius * 2);
+        
+        fill(point.color.h, point.color.s, point.color.b, 0.5);
+        noStroke();
+        ellipse(point.point.x, point.point.y, 10);
+        pop();
+      }
     }
   }
   
@@ -390,9 +516,9 @@ class Particle {
     this.size = this.baseSize; // Current size including mouse influence
     this.hue = map(angle, 0, TWO_PI, 0, 360);
     
-    // Mouse interaction
-    this.mouseProximityScale = 0; // How much the particle grows due to mouse proximity
-    this.mouseInfluenceRadius = 150; // How close mouse needs to be to affect size
+    // Mouse/focus interaction
+    this.proximityScale = 0; // How much the particle grows due to proximity
+    this.influenceRadius = 150; // How close mouse/focus needs to be to affect size
   }
   
   update() {
@@ -407,7 +533,7 @@ class Particle {
     springForce.mult(springStrength);
     this.acc.add(springForce);
     
-    // Size scaling - from mouse or auto focus point
+    // Size scaling - from mouse or auto focus points
     let proximityScale = 0;
     
     // Mouse interaction
@@ -425,39 +551,41 @@ class Particle {
       }
       
       // Mouse proximity scaling - particles get larger as mouse approaches
-      if (d < this.mouseInfluenceRadius) {
+      if (d < this.influenceRadius) {
         // Calculate mouse-based scale factor
-        let mouseScale = map(d, 0, this.mouseInfluenceRadius, mouseProximityScale, 0);
+        let mouseScale = map(d, 0, this.influenceRadius, mouseProximityScale, 0);
         // Use the larger scale factor (mouse or auto)
         proximityScale = max(proximityScale, mouseScale);
       }
     }
     
-    // Auto focus interaction (simulates mouse movement)
-    if (autoFocus) {
-      let focusPos = createVector(autoFocusPoint.x, autoFocusPoint.y);
-      let dir = p5.Vector.sub(this.pos, focusPos);
-      let d = dir.mag();
-      
-      // Auto focus repel force (optional, can be weaker than mouse)
-      if (d < mouseRepelRadius * 0.7) {  // Smaller influence radius
-        let force = map(d, 0, mouseRepelRadius * 0.7, mouseRepelForce * 0.5, 0);  // Weaker force
-        dir.normalize();
-        dir.mult(force);
-        this.acc.add(dir);
-      }
-      
-      // Auto focus scaling - particles get larger as focus approaches
-      if (d < this.mouseInfluenceRadius) {
-        // Calculate auto-based scale factor
-        let autoScale = map(d, 0, this.mouseInfluenceRadius, autoFocusScale, 0);
-        // Use the larger scale factor (mouse or auto)
-        proximityScale = max(proximityScale, autoScale);
+    // Auto focus interaction for all enabled focus points
+    for (let point of autoFocusPoints) {
+      if (point.enabled) {
+        let focusPos = createVector(point.point.x, point.point.y);
+        let dir = p5.Vector.sub(this.pos, focusPos);
+        let d = dir.mag();
+        
+        // Auto focus repel force - using point's custom spring value
+        if (d < mouseRepelRadius * 0.7) {  // Smaller influence radius
+          let force = map(d, 0, mouseRepelRadius * 0.7, mouseRepelForce * point.spring, 0);
+          dir.normalize();
+          dir.mult(force);
+          this.acc.add(dir);
+        }
+        
+        // Auto focus scaling - particles get larger as focus approaches
+        if (d < this.influenceRadius) {
+          // Calculate auto-based scale factor
+          let autoScale = map(d, 0, this.influenceRadius, point.scale, 0);
+          // Use the larger scale factor among all focus points
+          proximityScale = max(proximityScale, autoScale);
+        }
       }
     }
     
     // Apply the final scale factor with smooth transition
-    this.mouseProximityScale = lerp(this.mouseProximityScale, proximityScale, 0.2);
+    this.proximityScale = lerp(this.proximityScale, proximityScale, 0.2);
     
     // Update velocity and position
     this.vel.add(this.acc);
@@ -496,8 +624,8 @@ class Particle {
     // Subtle size pulsing based on oscillation
     let pulseAmount = sin(frameCount * 0.05 + this.oscillationOffset) * 0.2 + 1;
     
-    // Calculate final display size including mouse proximity effect
-    let finalSize = this.baseSize * pulseAmount * (1 + this.mouseProximityScale);
+    // Calculate final display size including proximity effect
+    let finalSize = this.baseSize * pulseAmount * (1 + this.proximityScale);
     
     // Draw particle
     noStroke();
