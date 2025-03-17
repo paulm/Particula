@@ -1,0 +1,90 @@
+/* 
+ * Particula - Main Stylesheet
+ */
+
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Remove margins from p5 canvas */
+canvas {
+  display: block;
+}
+
+/* Slider styling */
+input[type=range] {
+  -webkit-appearance: none;
+  height: 8px;
+  border-radius: 4px;
+  background: #d3d3d3;
+  outline: none;
+}
+
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #4CAF50;
+  cursor: pointer;
+}
+
+input[type=range]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #4CAF50;
+  cursor: pointer;
+}
+
+/* Checkbox styling */
+input[type=checkbox] {
+  transform: scale(1.3);
+  margin-right: 6px;
+}
+
+/* Button styling */
+button {
+  background-color: #f1f1f1;
+  border: none;
+  color: black;
+  padding: 6px 12px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 14px;
+  margin: 4px 2px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.3s;
+}
+
+button:hover {
+  background-color: #ddd;
+}
+
+/* Select dropdown styling */
+select {
+  padding: 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: white;
+}
+
+/* Control panel section styling */
+.collapsible-section {
+  transition: all 0.3s ease-out;
+}
+
+/* Animation for expanding/collapsing sections */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.collapsible-section > div:nth-child(2) {
+  animation: fadeIn 0.3s ease-out;
+}
