@@ -46,10 +46,10 @@ let colorSchemes = [
 ];
 let currentColorScheme = 0;
 
-// Interval effects
-let intervalTime = 1000; // Default 1 second interval in milliseconds
-let lastIntervalTime = 0;
-let radiusIntervalEnabled = false;
+// Interval effects - each effect has its own timing
+let radiusIntervalEnabled = true;
+let radiusIntervalTime = 500; // 0.5 seconds interval in milliseconds
+let lastRadiusIntervalTime = 0;
 let radiusIncreasing = true;
 let radiusMin = 100;
 let radiusMax = 300;
@@ -57,13 +57,17 @@ let radiusStep = 20;
 
 // Particle highlight effect
 let particleHighlightEnabled = false;
+let particleHighlightIntervalTime = 500; // 0.5 seconds interval in milliseconds
+let lastParticleHighlightTime = 0;
 let currentHighlightParticle = 0;
 let highlightDuration = 750; // 0.75 seconds
 let highlightStartTime = 0;
 let highlightScale = 5; // Expand to 5x size
 
 // Particle count interval effect
-let particleCountIntervalEnabled = false;
+let particleCountIntervalEnabled = true;
+let particleCountIntervalTime = 100; // 0.1 seconds interval in milliseconds
+let lastParticleCountTime = 0;
 let particleCountIncreasing = true;
 let particleCountMin = 10;
 let particleCountMax = 300;
@@ -83,15 +87,15 @@ function setup() {
   // Create first auto focus point
   createAutoFocusPoint({
     enabled: true,
-    radius: 300,
-    speed: -0.048, // Negative for counter-clockwise
+    radius: 250,
+    speed: 0.01, // Positive for clockwise, slower speed
     angle: 0,
     point: { x: 0, y: 0 },
-    scale: 7.7,
-    spring: 0.5, // Spring strength for this auto focus
+    scale: 5.0,
+    spring: 0.7, // Spring strength for this auto focus
     showIndicators: false,
-    clockwise: false,
-    color: autoFocusColors[0]
+    clockwise: true,
+    color: autoFocusColors[2] // Purple color
   });
   
   // Create particles arranged in a circle
@@ -115,6 +119,134 @@ function createParticles() {
     let y = centerY + sin(angle) * radius;
     
     particles.push(new Particle(x, y, angle, i));
+  }
+}
+
+// Add a specific number of particles to the existing array
+function addParticles(count) {
+  let currentCount = particles.length;
+  
+  for (let i = 0; i < count; i++) {
+    // Start new particles at the center of the circle
+    let newParticle = new Particle(centerX, centerY, 0, currentCount + i);
+    
+    // Mark as a new particle for special animation
+    newParticle.isNew = true;
+    
+    // Start with 0 opacity
+    newParticle.opacity = 0;
+    
+    // Insert at a random position in the array rather than just at the end
+    let insertIndex = floor(random(particles.length + 1)); // +1 to allow insertion at the end
+    particles.splice(insertIndex, 0, newParticle);
+  }
+  
+  // Redistribute all particles evenly around the circle
+  redistributeParticles();
+}
+
+// Remove a specific number of particles from the existing array
+function removeParticles(count) {
+  let currentCount = particles.length;
+  count = min(count, currentCount - 1); // Always keep at least one particle
+  
+  // Select random indices to remove
+  let indices = [];
+  let availableIndices = [...Array(currentCount).keys()]; // Create array [0,1,2,...,n-1]
+  
+  // Randomly select 'count' particles to remove
+  for (let i = 0; i < count; i++) {
+    if (availableIndices.length === 0) break;
+    let randomIndex = floor(random(availableIndices.length));
+    let particleIndex = availableIndices[randomIndex];
+    
+    // Remove this index from available options
+    availableIndices.splice(randomIndex, 1);
+    
+    // Mark this particle for removal animation
+    if (particleIndex < particles.length) {
+      particles[particleIndex].markedForRemoval = true;
+      particles[particleIndex].removalStartTime = millis();
+      particles[particleIndex].removalDuration = 600; // 600ms for fade out
+      
+      // Set target position to the center
+      particles[particleIndex].removalTarget = {
+        x: centerX,
+        y: centerY
+      };
+      
+      indices.push(particleIndex);
+    }
+  }
+  
+  // Sort indices in descending order to avoid index shifting during removal
+  indices.sort((a, b) => b - a);
+  
+  // Schedule actual removal after animation
+  setTimeout(() => {
+    // Remove particles that were marked for removal
+    particles = particles.filter(p => !p.markedForRemoval);
+    
+    // Redistribute all remaining particles evenly around the circle
+    redistributeParticles();
+  }, 650); // Wait for animation to complete (slightly longer than removalDuration)
+}
+
+// Redistribute all particles evenly around the circle
+function redistributeParticles() {
+  let totalParticles = particles.length;
+  
+  // Calculate new positions for all particles
+  for (let i = 0; i < totalParticles; i++) {
+    // Distribute evenly around circle
+    let newAngle = map(i, 0, totalParticles, 0, TWO_PI);
+    
+    // Update particle properties
+    particles[i].index = i;
+    particles[i].homeAngle = newAngle;
+    particles[i].angle = newAngle; // For color calculations
+    particles[i].updateColor(); // Update color based on new angle
+    
+    // Calculate new home position
+    let newX = centerX + cos(newAngle) * radius;
+    let newY = centerY + sin(newAngle) * radius;
+    
+    // Handle special case for new particles
+    if (particles[i].isNew) {
+      // New particles start at center and have a longer transition
+      particles[i].oldHome = {
+        x: centerX,
+        y: centerY
+      };
+      
+      // Make new particles a bit bigger and brighter initially
+      particles[i].newParticleScale = 1.5; // Start 50% larger
+      
+      // Set longer transition for new particles
+      particles[i].homeTransitionDuration = 800; // 800ms for new particles
+      
+      // Remove new flag once handled
+      particles[i].isNew = false;
+    } else {
+      // Existing particles transition from their current position
+      particles[i].oldHome = {
+        x: particles[i].home.x,
+        y: particles[i].home.y
+      };
+      
+      // Standard transition duration for existing particles
+      particles[i].homeTransitionDuration = 500; // 500ms for existing particles
+    }
+    
+    // Set target position
+    particles[i].targetHome = {
+      x: newX,
+      y: newY
+    };
+    
+    // Initialize transition timer
+    particles[i].homeTransitionStart = millis();
+    particles[i].isTransitioning = true;
   }
 }
 
@@ -236,14 +368,14 @@ function createControlPanel() {
   // SECTION 4: Interval Effects
   let intervalSection = createCollapsibleSection('Interval', false);
   
-  // Interval Time slider
-  createSliderGroup('Interval Time (sec)', 0, 3, intervalTime/1000, 0.1, (val) => {
-    intervalTime = val * 1000; // Convert to milliseconds
-  }, intervalSection);
+  // Radius Interval Controls
+  let radiusIntervalGroup = createElement('div');
+  radiusIntervalGroup.parent(intervalSection);
+  radiusIntervalGroup.style('margin-bottom: 15px; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 10px;');
   
   // Radius Interval Toggle
   let radiusIntervalContainer = createElement('div');
-  radiusIntervalContainer.parent(intervalSection);
+  radiusIntervalContainer.parent(radiusIntervalGroup);
   radiusIntervalContainer.style('margin-bottom: 12px; display: flex; align-items: center;');
   
   let radiusIntervalLabel = createElement('span', 'Pulse Radius:');
@@ -256,13 +388,23 @@ function createControlPanel() {
     radiusIntervalEnabled = toggleRadiusInterval.checked();
     // Reset time tracking when enabled
     if (radiusIntervalEnabled) {
-      lastIntervalTime = millis();
+      lastRadiusIntervalTime = millis();
     }
   });
   
+  // Radius Interval Time slider
+  createSliderGroup('Radius Interval (sec)', 0, 3, radiusIntervalTime/1000, 0.1, (val) => {
+    radiusIntervalTime = val * 1000; // Convert to milliseconds
+  }, radiusIntervalGroup);
+  
+  // Particle Highlight Controls
+  let highlightGroup = createElement('div');
+  highlightGroup.parent(intervalSection);
+  highlightGroup.style('margin-bottom: 15px; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 10px;');
+  
   // Particle Highlight Toggle
   let particleHighlightContainer = createElement('div');
-  particleHighlightContainer.parent(intervalSection);
+  particleHighlightContainer.parent(highlightGroup);
   particleHighlightContainer.style('margin-bottom: 12px; display: flex; align-items: center;');
   
   let particleHighlightLabel = createElement('span', 'Highlight Particles:');
@@ -276,14 +418,24 @@ function createControlPanel() {
     // Reset particle index and time tracking when enabled
     if (particleHighlightEnabled) {
       currentHighlightParticle = 0;
-      lastIntervalTime = millis();
+      lastParticleHighlightTime = millis();
       highlightStartTime = 0;
     }
   });
   
+  // Highlight Interval Time slider
+  createSliderGroup('Highlight Interval (sec)', 0, 3, particleHighlightIntervalTime/1000, 0.1, (val) => {
+    particleHighlightIntervalTime = val * 1000; // Convert to milliseconds
+  }, highlightGroup);
+  
+  // Particle Count Controls
+  let countGroup = createElement('div');
+  countGroup.parent(intervalSection);
+  countGroup.style('margin-bottom: 15px;');
+  
   // Particle Count Toggle
   let particleCountContainer = createElement('div');
-  particleCountContainer.parent(intervalSection);
+  particleCountContainer.parent(countGroup);
   particleCountContainer.style('margin-bottom: 12px; display: flex; align-items: center;');
   
   let particleCountLabel = createElement('span', 'Vary Particle Count:');
@@ -296,9 +448,14 @@ function createControlPanel() {
     particleCountIntervalEnabled = toggleParticleCount.checked();
     // Reset time tracking when enabled
     if (particleCountIntervalEnabled) {
-      lastIntervalTime = millis();
+      lastParticleCountTime = millis();
     }
   });
+  
+  // Particle Count Interval Time slider
+  createSliderGroup('Count Interval (sec)', 0, 3, particleCountIntervalTime/1000, 0.1, (val) => {
+    particleCountIntervalTime = val * 1000; // Convert to milliseconds
+  }, countGroup);
   
   // SECTION 4: Auto Focus Controls
   // First create a container for all auto focus sections
@@ -621,64 +778,80 @@ function draw() {
 function processIntervalEffects() {
   let currentTime = millis();
   
-  // Process interval-based effects
-  if ((radiusIntervalEnabled || particleHighlightEnabled || particleCountIntervalEnabled) && 
-      currentTime - lastIntervalTime >= intervalTime) {
+  // Process each interval effect independently with its own timer
+  
+  // Radius pulsing effect
+  if (radiusIntervalEnabled && currentTime - lastRadiusIntervalTime >= radiusIntervalTime) {
+    // Adjust radius based on current direction
+    if (radiusIncreasing) {
+      radius += radiusStep;
+      if (radius >= radiusMax) {
+        radius = radiusMax;
+        radiusIncreasing = false;
+      }
+    } else {
+      radius -= radiusStep;
+      if (radius <= radiusMin) {
+        radius = radiusMin;
+        radiusIncreasing = true;
+      }
+    }
     
-    // Radius pulsing effect
-    if (radiusIntervalEnabled) {
-      // Adjust radius based on current direction
-      if (radiusIncreasing) {
-        radius += radiusStep;
-        if (radius >= radiusMax) {
-          radius = radiusMax;
-          radiusIncreasing = false;
-        }
-      } else {
-        radius -= radiusStep;
-        if (radius <= radiusMin) {
-          radius = radiusMin;
-          radiusIncreasing = true;
-        }
+    // Update particle positions based on new radius
+    updateParticlePositions();
+    
+    // Update the last radius interval time
+    lastRadiusIntervalTime = currentTime;
+  }
+  
+  // Particle highlight effect
+  if (particleHighlightEnabled && currentTime - lastParticleHighlightTime >= particleHighlightIntervalTime) {
+    // Move to next particle
+    currentHighlightParticle = (currentHighlightParticle + 1) % particles.length;
+    highlightStartTime = currentTime;
+    
+    // Update the last highlight interval time
+    lastParticleHighlightTime = currentTime;
+  }
+  
+  // Particle count variation effect
+  if (particleCountIntervalEnabled && currentTime - lastParticleCountTime >= particleCountIntervalTime) {
+    // Generate a random step between min and max
+    let step = floor(random(particleCountMinStep, particleCountMaxStep + 1));
+    
+    // Adjust particle count based on current direction
+    if (particleCountIncreasing) {
+      // Add new particles
+      let newCount = min(numParticles + step, particleCountMax);
+      
+      // Add particles incrementally
+      if (newCount > numParticles) {
+        addParticles(newCount - numParticles);
+        numParticles = newCount;
       }
       
-      // Update particle positions based on new radius
-      updateParticlePositions();
-    }
-    
-    // Start a new particle highlight
-    if (particleHighlightEnabled) {
-      // Move to next particle
-      currentHighlightParticle = (currentHighlightParticle + 1) % particles.length;
-      highlightStartTime = currentTime;
-    }
-    
-    // Vary particle count
-    if (particleCountIntervalEnabled) {
-      // Generate a random step between min and max
-      let step = floor(random(particleCountMinStep, particleCountMaxStep + 1));
+      // Check if we've reached the maximum
+      if (numParticles >= particleCountMax) {
+        particleCountIncreasing = false;
+      }
+    } else {
+      // Remove particles
+      let newCount = max(numParticles - step, particleCountMin);
       
-      // Adjust particle count based on current direction
-      if (particleCountIncreasing) {
-        numParticles += step;
-        if (numParticles >= particleCountMax) {
-          numParticles = particleCountMax;
-          particleCountIncreasing = false;
-        }
-      } else {
-        numParticles -= step;
-        if (numParticles <= particleCountMin) {
-          numParticles = particleCountMin;
-          particleCountIncreasing = true;
-        }
+      // Remove particles incrementally
+      if (newCount < numParticles) {
+        removeParticles(numParticles - newCount);
+        numParticles = newCount;
       }
       
-      // Recreate particles with new count
-      createParticles();
+      // Check if we've reached the minimum
+      if (numParticles <= particleCountMin) {
+        particleCountIncreasing = true;
+      }
     }
     
-    // Update the last interval time
-    lastIntervalTime = currentTime;
+    // Update the last particle count interval time
+    lastParticleCountTime = currentTime;
   }
   
   // Process particle highlight animation (happens continuously during highlight duration)
@@ -763,6 +936,25 @@ class Particle {
     this.homeAngle = angle;
     this.index = index; // Store particle index for phased oscillation
     
+    // Home position transition properties
+    this.oldHome = null;
+    this.targetHome = null;
+    this.homeTransitionStart = 0;
+    this.homeTransitionDuration = 0;
+    this.isTransitioning = false;
+    
+    // Flag for new particles that need special animation
+    this.isNew = false;
+    
+    // Removal animation properties
+    this.markedForRemoval = false;
+    this.removalStartTime = 0;
+    this.removalDuration = 0;
+    this.removalTarget = null;
+    
+    // Opacity for fade in/out effects
+    this.opacity = 0.85; // Default opacity
+    
     // Autonomous movement offset
     this.oscillationOffset = random(TWO_PI); // Random starting phase
     this.rotationOffset = 0;
@@ -786,6 +978,43 @@ class Particle {
   }
   
   update() {
+    let currentTime = millis();
+    
+    // Handle removal animation if marked for removal
+    if (this.markedForRemoval) {
+      let elapsedTime = currentTime - this.removalStartTime;
+      let progress = constrain(elapsedTime / this.removalDuration, 0, 1);
+      
+      // Fade out opacity
+      this.opacity = lerp(0.85, 0, progress);
+      
+      // Move toward center
+      let targetX = this.removalTarget.x;
+      let targetY = this.removalTarget.y;
+      
+      // Gradually reduce size
+      this.proximityScale = lerp(this.proximityScale, -0.5, progress * 0.5); // Reduce to half size
+      
+      // Move position toward center
+      this.pos.x = lerp(this.pos.x, targetX, progress * 0.1);
+      this.pos.y = lerp(this.pos.y, targetY, progress * 0.1);
+      
+      // Reduce spring force as it's being removed
+      let weakenedSpringForce = springStrength * (1 - progress * 0.8);
+      
+      // Gentle spring force toward home for stability
+      let springForce = p5.Vector.sub(this.home, this.pos);
+      springForce.mult(weakenedSpringForce);
+      this.acc = springForce.copy();
+      
+      // Update velocity with reduced damping
+      this.vel.add(this.acc);
+      this.vel.mult(damping * 0.8); // More damping to slow it down
+      this.pos.add(this.vel);
+      
+      return; // Skip rest of update for particles being removed
+    }
+    
     // Update autonomous movement
     this.updateAutonomousMovement();
     
@@ -855,24 +1084,60 @@ class Particle {
     this.vel.add(this.acc);
     this.vel.mult(damping); // Add damping
     this.pos.add(this.vel);
+    
+    // Handle fade-in for new particles
+    if (this.isNew || this.opacity < 0.85) {
+      if (this.isTransitioning) {
+        // Calculate how far along the particle is in its journey from center to edge
+        let distanceFromCenter = dist(this.pos.x, this.pos.y, centerX, centerY);
+        let maxDistance = dist(0, 0, width/2, height/2); // Maximum possible distance
+        let distanceProgress = constrain(distanceFromCenter / (radius * 0.8), 0, 1);
+        
+        // Fade in based on distance from center
+        this.opacity = lerp(0, 0.85, distanceProgress);
+      }
+    }
   }
   
   updateAutonomousMovement() {
-    // Update rotation over time
-    this.rotationOffset += rotationSpeed;
-    
-    // Calculate new angle with rotation
-    let currentAngle = this.homeAngle + this.rotationOffset;
-    
-    // Add oscillation effect (using sine wave)
-    // Phase the oscillation based on particle index for a wave effect
-    let phaseShift = this.index * (TWO_PI / numParticles / 2);
-    let oscillation = sin(frameCount * oscillationSpeed + this.oscillationOffset + phaseShift) * oscillationAmount;
-    
-    // Calculate new home position with rotation and oscillation
-    let currentRadius = radius + oscillation;
-    this.home.x = centerX + cos(currentAngle) * currentRadius;
-    this.home.y = centerY + sin(currentAngle) * currentRadius;
+    // If home position is transitioning, handle that first
+    if (this.isTransitioning) {
+      let currentTime = millis();
+      let elapsedTime = currentTime - this.homeTransitionStart;
+      
+      if (elapsedTime < this.homeTransitionDuration) {
+        // Calculate transition progress (0 to 1)
+        let progress = elapsedTime / this.homeTransitionDuration;
+        
+        // Apply easing function for smoother transition
+        let easedProgress = 0.5 - 0.5 * cos(progress * PI);
+        
+        // Interpolate between old and target home positions
+        this.home.x = lerp(this.oldHome.x, this.targetHome.x, easedProgress);
+        this.home.y = lerp(this.oldHome.y, this.targetHome.y, easedProgress);
+      } else {
+        // Transition complete
+        this.home.x = this.targetHome.x;
+        this.home.y = this.targetHome.y;
+        this.isTransitioning = false;
+      }
+    } else {
+      // Update rotation over time
+      this.rotationOffset += rotationSpeed;
+      
+      // Calculate new angle with rotation
+      let currentAngle = this.homeAngle + this.rotationOffset;
+      
+      // Add oscillation effect (using sine wave)
+      // Phase the oscillation based on particle index for a wave effect
+      let phaseShift = this.index * (TWO_PI / numParticles / 2);
+      let oscillation = sin(frameCount * oscillationSpeed + this.oscillationOffset + phaseShift) * oscillationAmount;
+      
+      // Calculate new home position with rotation and oscillation
+      let currentRadius = radius + oscillation;
+      this.home.x = centerX + cos(currentAngle) * currentRadius;
+      this.home.y = centerY + sin(currentAngle) * currentRadius;
+    }
   }
   
   updateColor() {
@@ -896,6 +1161,7 @@ class Particle {
     
     // Determine color values - use temporary values if particle is highlighted
     let hue, saturation, brightness;
+    let alpha = this.opacity; // Use the particle's opacity property
     
     if (this.isHighlighted && this.tempHue !== undefined) {
       // Use temporary color values during highlight animation
@@ -917,15 +1183,36 @@ class Particle {
         90;
     }
     
+    // Special animation for particles transitioning from center
+    let newParticleScale = 1;
+    if (this.isTransitioning && this.oldHome && this.oldHome.x === centerX && this.oldHome.y === centerY) {
+      // This is a new particle animating from center
+      let progress = (millis() - this.homeTransitionStart) / this.homeTransitionDuration;
+      
+      if (progress < 1) {
+        // Make new particles brighter during transition
+        brightness = lerp(100, brightness, progress);
+        saturation = lerp(100, saturation, progress);
+        
+        // Start a bit larger and shrink to normal size
+        if (this.newParticleScale) {
+          newParticleScale = lerp(this.newParticleScale, 1, progress);
+        }
+      }
+    }
+    
     // Subtle size pulsing based on oscillation
     let pulseAmount = sin(frameCount * 0.05 + this.oscillationOffset) * 0.2 + 1;
     
-    // Calculate final display size including proximity effect and highlight
-    let finalSize = this.baseSize * pulseAmount * (1 + this.proximityScale) * this.highlightScale;
+    // Calculate final display size including proximity effect, highlight, and new particle scale
+    let finalSize = this.baseSize * pulseAmount * (1 + this.proximityScale) * this.highlightScale * newParticleScale;
+    
+    // Skip drawing particles with very low opacity
+    if (alpha < 0.01) return;
     
     // Draw particle
     noStroke();
-    fill(hue, saturation, brightness, 0.85);
+    fill(hue, saturation, brightness, alpha);
     ellipse(this.pos.x, this.pos.y, finalSize);
   }
 }
