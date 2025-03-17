@@ -36,6 +36,16 @@ let sliderParticles, sliderRadius, sliderWaveAmp, sliderWaveSpeed;
 let sliderRotation, sliderMouseForce, sliderSpring, sliderMouseSize;
 let controlPanel, hideButton;
 
+// Color schemes
+let colorSchemes = [
+  { name: "Rainbow", getHue: (angle) => map(angle, 0, TWO_PI, 0, 360) },
+  { name: "Monochrome", getHue: (angle) => 0, saturation: 0, brightness: 30 },
+  { name: "Ocean", getHue: (angle) => map(angle, 0, TWO_PI, 180, 240) },
+  { name: "Sunset", getHue: (angle) => map(angle, 0, TWO_PI, 0, 60) },
+  { name: "Neon", getHue: (angle) => floor(angle / (PI/3)) * 60 }
+];
+let currentColorScheme = 0;
+
 // Auto focus section containers
 let autoFocusSections = [];
 
@@ -125,6 +135,35 @@ function createControlPanel() {
     updateParticlePositions();
   }, basicSection);
   
+  // Color Scheme Selector
+  let colorContainer = createElement('div');
+  colorContainer.parent(basicSection);
+  colorContainer.style('margin-bottom: 12px; display: flex; align-items: center;');
+  
+  let colorLabel = createElement('span', 'Color Scheme:');
+  colorLabel.parent(colorContainer);
+  
+  let colorSelect = createSelect();
+  colorSelect.parent(colorContainer);
+  colorSelect.style('margin-left: auto; width: 130px;');
+  
+  // Add all color schemes to dropdown
+  for (let i = 0; i < colorSchemes.length; i++) {
+    colorSelect.option(colorSchemes[i].name, i);
+  }
+  
+  // Set initial value
+  colorSelect.selected(currentColorScheme);
+  
+  // Handle color scheme change
+  colorSelect.changed(() => {
+    currentColorScheme = parseInt(colorSelect.value());
+    // Update existing particles with new colors
+    for (let p of particles) {
+      p.updateColor();
+    }
+  });
+  
   // Show/Hide Lines Toggle
   let linesContainer = createElement('div');
   linesContainer.parent(basicSection);
@@ -151,7 +190,7 @@ function createControlPanel() {
     oscillationSpeed = val;
   }, motionSection);
   
-  createSliderGroup('Rotation', -0.002, 0.002, rotationSpeed, 0.0001, (val) => {
+  createSliderGroup('Rotation', -0.03, 0.03, rotationSpeed, 0.0001, (val) => {
     rotationSpeed = val;
   }, motionSection);
   
@@ -514,7 +553,8 @@ class Particle {
     // Appearance
     this.baseSize = random(4, 8);
     this.size = this.baseSize; // Current size including mouse influence
-    this.hue = map(angle, 0, TWO_PI, 0, 360);
+    this.angle = angle; // Store the angle for color updates
+    this.updateColor(); // Set initial color based on current scheme
     
     // Mouse/focus interaction
     this.proximityScale = 0; // How much the particle grows due to proximity
@@ -611,6 +651,16 @@ class Particle {
     this.home.y = centerY + sin(currentAngle) * currentRadius;
   }
   
+  updateColor() {
+    // Get the current color scheme
+    const scheme = colorSchemes[currentColorScheme];
+    // Update the hue based on the scheme's function
+    this.hue = scheme.getHue(this.angle);
+    // Store specific saturation and brightness if defined in the scheme
+    this.customSaturation = scheme.saturation;
+    this.customBrightness = scheme.brightness;
+  }
+  
   display() {
     // Calculate color based on distance from ideal position
     let idealPos = createVector(
@@ -619,7 +669,16 @@ class Particle {
     );
     
     let distFromIdeal = p5.Vector.dist(this.pos, idealPos);
-    let saturation = map(constrain(distFromIdeal, 0, 100), 0, 100, 60, 100);
+    
+    // Use custom saturation if defined in the color scheme, otherwise calculate based on distance
+    let saturation = this.customSaturation !== undefined ? 
+      this.customSaturation : 
+      map(constrain(distFromIdeal, 0, 100), 0, 100, 60, 100);
+    
+    // Use custom brightness if defined in the color scheme, otherwise use default
+    let brightness = this.customBrightness !== undefined ? 
+      this.customBrightness : 
+      90;
     
     // Subtle size pulsing based on oscillation
     let pulseAmount = sin(frameCount * 0.05 + this.oscillationOffset) * 0.2 + 1;
@@ -629,7 +688,7 @@ class Particle {
     
     // Draw particle
     noStroke();
-    fill(this.hue, saturation, 90, 0.85);
+    fill(this.hue, saturation, brightness, 0.85);
     ellipse(this.pos.x, this.pos.y, finalSize);
   }
 }
