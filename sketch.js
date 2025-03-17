@@ -46,6 +46,30 @@ let colorSchemes = [
 ];
 let currentColorScheme = 0;
 
+// Interval effects
+let intervalTime = 1000; // Default 1 second interval in milliseconds
+let lastIntervalTime = 0;
+let radiusIntervalEnabled = false;
+let radiusIncreasing = true;
+let radiusMin = 100;
+let radiusMax = 300;
+let radiusStep = 20;
+
+// Particle highlight effect
+let particleHighlightEnabled = false;
+let currentHighlightParticle = 0;
+let highlightDuration = 750; // 0.75 seconds
+let highlightStartTime = 0;
+let highlightScale = 5; // Expand to 5x size
+
+// Particle count interval effect
+let particleCountIntervalEnabled = false;
+let particleCountIncreasing = true;
+let particleCountMin = 10;
+let particleCountMax = 300;
+let particleCountMinStep = 1;
+let particleCountMaxStep = 4;
+
 // Auto focus section containers
 let autoFocusSections = [];
 
@@ -208,6 +232,73 @@ function createControlPanel() {
   createSliderGroup('Mouse Size Effect', 0, 10, mouseProximityScale, 0.1, (val) => {
     mouseProximityScale = val;
   }, interactionSection);
+  
+  // SECTION 4: Interval Effects
+  let intervalSection = createCollapsibleSection('Interval', false);
+  
+  // Interval Time slider
+  createSliderGroup('Interval Time (sec)', 0, 3, intervalTime/1000, 0.1, (val) => {
+    intervalTime = val * 1000; // Convert to milliseconds
+  }, intervalSection);
+  
+  // Radius Interval Toggle
+  let radiusIntervalContainer = createElement('div');
+  radiusIntervalContainer.parent(intervalSection);
+  radiusIntervalContainer.style('margin-bottom: 12px; display: flex; align-items: center;');
+  
+  let radiusIntervalLabel = createElement('span', 'Pulse Radius:');
+  radiusIntervalLabel.parent(radiusIntervalContainer);
+  
+  let toggleRadiusInterval = createCheckbox('', radiusIntervalEnabled);
+  toggleRadiusInterval.parent(radiusIntervalContainer);
+  toggleRadiusInterval.style('margin-left: auto;');
+  toggleRadiusInterval.changed(() => {
+    radiusIntervalEnabled = toggleRadiusInterval.checked();
+    // Reset time tracking when enabled
+    if (radiusIntervalEnabled) {
+      lastIntervalTime = millis();
+    }
+  });
+  
+  // Particle Highlight Toggle
+  let particleHighlightContainer = createElement('div');
+  particleHighlightContainer.parent(intervalSection);
+  particleHighlightContainer.style('margin-bottom: 12px; display: flex; align-items: center;');
+  
+  let particleHighlightLabel = createElement('span', 'Highlight Particles:');
+  particleHighlightLabel.parent(particleHighlightContainer);
+  
+  let toggleParticleHighlight = createCheckbox('', particleHighlightEnabled);
+  toggleParticleHighlight.parent(particleHighlightContainer);
+  toggleParticleHighlight.style('margin-left: auto;');
+  toggleParticleHighlight.changed(() => {
+    particleHighlightEnabled = toggleParticleHighlight.checked();
+    // Reset particle index and time tracking when enabled
+    if (particleHighlightEnabled) {
+      currentHighlightParticle = 0;
+      lastIntervalTime = millis();
+      highlightStartTime = 0;
+    }
+  });
+  
+  // Particle Count Toggle
+  let particleCountContainer = createElement('div');
+  particleCountContainer.parent(intervalSection);
+  particleCountContainer.style('margin-bottom: 12px; display: flex; align-items: center;');
+  
+  let particleCountLabel = createElement('span', 'Vary Particle Count:');
+  particleCountLabel.parent(particleCountContainer);
+  
+  let toggleParticleCount = createCheckbox('', particleCountIntervalEnabled);
+  toggleParticleCount.parent(particleCountContainer);
+  toggleParticleCount.style('margin-left: auto;');
+  toggleParticleCount.changed(() => {
+    particleCountIntervalEnabled = toggleParticleCount.checked();
+    // Reset time tracking when enabled
+    if (particleCountIntervalEnabled) {
+      lastIntervalTime = millis();
+    }
+  });
   
   // SECTION 4: Auto Focus Controls
   // First create a container for all auto focus sections
@@ -480,6 +571,9 @@ function updateParticlePositions() {
 function draw() {
   background(0, 0, 100, 0.2); // Semi-transparent white for slight trails
   
+  // Process interval effects
+  processIntervalEffects();
+  
   // Update all auto focus points
   for (let i = 0; i < autoFocusPoints.length; i++) {
     let point = autoFocusPoints[i];
@@ -524,6 +618,129 @@ function draw() {
   }
 }
 
+function processIntervalEffects() {
+  let currentTime = millis();
+  
+  // Process interval-based effects
+  if ((radiusIntervalEnabled || particleHighlightEnabled || particleCountIntervalEnabled) && 
+      currentTime - lastIntervalTime >= intervalTime) {
+    
+    // Radius pulsing effect
+    if (radiusIntervalEnabled) {
+      // Adjust radius based on current direction
+      if (radiusIncreasing) {
+        radius += radiusStep;
+        if (radius >= radiusMax) {
+          radius = radiusMax;
+          radiusIncreasing = false;
+        }
+      } else {
+        radius -= radiusStep;
+        if (radius <= radiusMin) {
+          radius = radiusMin;
+          radiusIncreasing = true;
+        }
+      }
+      
+      // Update particle positions based on new radius
+      updateParticlePositions();
+    }
+    
+    // Start a new particle highlight
+    if (particleHighlightEnabled) {
+      // Move to next particle
+      currentHighlightParticle = (currentHighlightParticle + 1) % particles.length;
+      highlightStartTime = currentTime;
+    }
+    
+    // Vary particle count
+    if (particleCountIntervalEnabled) {
+      // Generate a random step between min and max
+      let step = floor(random(particleCountMinStep, particleCountMaxStep + 1));
+      
+      // Adjust particle count based on current direction
+      if (particleCountIncreasing) {
+        numParticles += step;
+        if (numParticles >= particleCountMax) {
+          numParticles = particleCountMax;
+          particleCountIncreasing = false;
+        }
+      } else {
+        numParticles -= step;
+        if (numParticles <= particleCountMin) {
+          numParticles = particleCountMin;
+          particleCountIncreasing = true;
+        }
+      }
+      
+      // Recreate particles with new count
+      createParticles();
+    }
+    
+    // Update the last interval time
+    lastIntervalTime = currentTime;
+  }
+  
+  // Process particle highlight animation (happens continuously during highlight duration)
+  if (particleHighlightEnabled && highlightStartTime > 0) {
+    let highlightElapsed = currentTime - highlightStartTime;
+    let currentParticle = particles[currentHighlightParticle];
+    
+    if (!currentParticle) return;
+    
+    if (highlightElapsed < highlightDuration) {
+      // Start of highlight (first frame)
+      if (!currentParticle.isHighlighted) {
+        currentParticle.isHighlighted = true;
+        
+        // Store original colors for later restoration
+        currentParticle.originalHue = currentParticle.hue;
+        currentParticle.originalSaturation = currentParticle.customSaturation !== undefined ? 
+          currentParticle.customSaturation : 80;
+        currentParticle.originalBrightness = currentParticle.customBrightness !== undefined ? 
+          currentParticle.customBrightness : 90;
+      }
+      
+      // Calculate progress (0 to 1)
+      let progress = highlightElapsed / highlightDuration;
+      
+      // Fast expand at the beginning, slow shrink for the rest
+      let scaleFactor;
+      if (progress < 0.2) {
+        // Quick expansion in the first 20% of time
+        scaleFactor = map(progress, 0, 0.2, 1, highlightScale);
+      } else {
+        // Slow easing back to normal size for the remaining 80% of time
+        scaleFactor = map(progress, 0.2, 1, highlightScale, 1);
+      }
+      
+      // Apply scale effect
+      currentParticle.highlightScale = scaleFactor;
+      
+      // Color transition from black back to original color
+      if (progress < 0.3) {
+        // First 30% of time: stay black
+        currentParticle.tempHue = 0;
+        currentParticle.tempSaturation = 0;
+        currentParticle.tempBrightness = 0;
+      } else {
+        // Remaining 70% of time: fade from black to original color
+        let colorProgress = map(progress, 0.3, 1, 0, 1);
+        currentParticle.tempHue = lerp(0, currentParticle.originalHue, colorProgress);
+        currentParticle.tempSaturation = lerp(0, currentParticle.originalSaturation, colorProgress);
+        currentParticle.tempBrightness = lerp(0, currentParticle.originalBrightness, colorProgress);
+      }
+    } else {
+      // Reset highlight effects when animation completes
+      currentParticle.highlightScale = 1;
+      currentParticle.isHighlighted = false;
+      currentParticle.tempHue = undefined;
+      currentParticle.tempSaturation = undefined;
+      currentParticle.tempBrightness = undefined;
+    }
+  }
+}
+
 // Resize canvas when window is resized
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
@@ -559,6 +776,13 @@ class Particle {
     // Mouse/focus interaction
     this.proximityScale = 0; // How much the particle grows due to proximity
     this.influenceRadius = 150; // How close mouse/focus needs to be to affect size
+    
+    // Highlight effect
+    this.highlightScale = 1; // No highlight by default
+    this.isHighlighted = false;
+    this.originalHue = 0;
+    this.originalSaturation = 0;
+    this.originalBrightness = 0;
   }
   
   update() {
@@ -670,25 +894,38 @@ class Particle {
     
     let distFromIdeal = p5.Vector.dist(this.pos, idealPos);
     
-    // Use custom saturation if defined in the color scheme, otherwise calculate based on distance
-    let saturation = this.customSaturation !== undefined ? 
-      this.customSaturation : 
-      map(constrain(distFromIdeal, 0, 100), 0, 100, 60, 100);
+    // Determine color values - use temporary values if particle is highlighted
+    let hue, saturation, brightness;
     
-    // Use custom brightness if defined in the color scheme, otherwise use default
-    let brightness = this.customBrightness !== undefined ? 
-      this.customBrightness : 
-      90;
+    if (this.isHighlighted && this.tempHue !== undefined) {
+      // Use temporary color values during highlight animation
+      hue = this.tempHue;
+      saturation = this.tempSaturation;
+      brightness = this.tempBrightness;
+    } else {
+      // Use normal color calculation
+      hue = this.hue;
+      
+      // Use custom saturation if defined in the color scheme, otherwise calculate based on distance
+      saturation = this.customSaturation !== undefined ? 
+        this.customSaturation : 
+        map(constrain(distFromIdeal, 0, 100), 0, 100, 60, 100);
+      
+      // Use custom brightness if defined in the color scheme, otherwise use default
+      brightness = this.customBrightness !== undefined ? 
+        this.customBrightness : 
+        90;
+    }
     
     // Subtle size pulsing based on oscillation
     let pulseAmount = sin(frameCount * 0.05 + this.oscillationOffset) * 0.2 + 1;
     
-    // Calculate final display size including proximity effect
-    let finalSize = this.baseSize * pulseAmount * (1 + this.proximityScale);
+    // Calculate final display size including proximity effect and highlight
+    let finalSize = this.baseSize * pulseAmount * (1 + this.proximityScale) * this.highlightScale;
     
     // Draw particle
     noStroke();
-    fill(this.hue, saturation, brightness, 0.85);
+    fill(hue, saturation, brightness, 0.85);
     ellipse(this.pos.x, this.pos.y, finalSize);
   }
 }
